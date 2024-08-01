@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>အာကာသ တိုက်ပွဲ ဂိမ်း</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar:wght@400;700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="black"/><circle cx="10" cy="10" r="1" fill="white" /><circle cx="50" cy="30" r="1" fill="white" /><circle cx="100" cy="80" r="1" fill="white" /><circle cx="150" cy="50" r="1" fill="white" /><circle cx="180" cy="120" r="1" fill="white" /><circle cx="20" cy="170" r="1" fill="white" /><circle cx="90" cy="190" r="1" fill="white" /></svg>');
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Noto Sans Myanmar', sans-serif;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 500px;
+            height: 600px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 3px solid #00ffff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px #00ffff;
+        }
+
+        #gameCanvas {
+            border-radius: 8px;
+        }
+
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .hud-item {
+            background: rgba(0, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ffff;
+            text-align: center;
+        }
+
+        button {
+            background: #00ffff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            font-family: 'Noto Sans Myanmar', sans-serif;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #fff;
+            box-shadow: 0 0 15px #00ffff;
+        }
+
+        #gameOverScreen {
+            display: none;
+        }
+
+        #finalScore {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="500" height="600"></canvas>
+        <div id="hud">
+            <div class="hud-item">ရမှတ်: <span id="score">0</span></div>
+            <div class="hud-item">အသက်: <span id="lives">3</span></div>
+            <div class="hud-item">ပြည်သူ: <span id="people">0</span></div>
+        </div>
+        <div id="startScreen">
+            <h1>အာကာသ တိုက်ပွဲ ဂိမ်း</h1>
+            <button id="startButton">ကစားမည်</button>
+        </div>
+        <div id="gameOverScreen">
+            <h1>ကစားပွဲပြီးဆုံးပါပြီ</h1>
+            <div id="finalScore">နောက်ဆုံးရမှတ်: <span></span></div>
+            <div id="finalPeople">ကယ်တင်ခဲ့သော ပြည်သူ: <span></span></div>
+            <button id="restartButton">ပြန်လည်ကစားမည်</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreDisplay = document.getElementById("score");
+        const livesDisplay = document.getElementById("lives");
+        const peopleDisplay = document.getElementById("people");
+        const startScreen = document.getElementById("startScreen");
+        const gameOverScreen = document.getElementById("gameOverScreen");
+        const startButton = document.getElementById("startButton");
+        const restartButton = document.getElementById("restartButton");
+        const finalScoreDisplay = document.getElementById("finalScore").getElementsByTagName("span")[0];
+        const finalPeopleDisplay = document.getElementById("finalPeople").getElementsByTagName("span")[0];
+
+        // Ball properties
+        const ballRadius = 8;
+        let x = canvas.width / 2;
+        let y = canvas.height - 30;
+        let dx = 4;
+        let dy = -4;
+
+        // Paddle properties
+        const paddleHeight = 10;
+        const paddleWidth = 75;
+        let paddleX = (canvas.width - paddleWidth) / 2;
+
+        // Block properties
+        const blockRowCount = 5;
+        const blockColumnCount = 8;
+        const blockWidth = 50;
+        const blockHeight = 20;
+        const blockPadding = 10;
+        const blockOffsetTop = 30;
+        const blockOffsetLeft = 30;
+
+        // Game state
+        let score = 0;
+        let lives = 3;
+        let people = 0;
+        let gameStarted = false;
+
+        // Create blocks
+        const blocks = [];
+        for (let c = 0; c < blockColumnCount; c++) {
+            blocks[c] = [];
+            for (let r = 0; r < blockRowCount; r++) {
+                blocks[c][r] = { x: 0, y: 0, status: 1, type: Math.random() < 0.7 ? 'soldier' : 'person' };
+            }
+        }
+
+        // Event listeners
+        document.addEventListener("mousemove", mouseMoveHandler, false);
+        startButton.addEventListener("click", startGame);
+        restartButton.addEventListener("click", restartGame);
+
+        function mouseMoveHandler(e) {
+            const relativeX = e.clientX - canvas.offsetLeft;
+            if (relativeX > 0 && relativeX < canvas.width) {
+                paddleX = relativeX - paddleWidth / 2;
+            }
+        }
+
+        function collisionDetection() {
+            for (let c = 0; c < blockColumnCount; c++) {
+                for (let r = 0; r < blockRowCount; r++) {
+                    const b = blocks[c][r];
+                    if (b.status == 1) {
+                        if (x > b.x && x < b.x + blockWidth && y > b.y && y < b.y + blockHeight) {
+                            dy = -dy;
+                            b.status = 0;
+                            if (b.type === 'soldier') {
+                                score += 10;
+                            } else {
+                                people++;
+                                score += 50;
+                            }
+                            scoreDisplay.textContent = score;
+                            peopleDisplay.textContent = people;
+                            if (score >= 1000) {
+                                alert("ဂုဏ်ယူပါတယ်! သင်ကစားပွဲအားလုံးကို အောင်မြင်စွာပြီးဆုံးပါပြီ။");
+                                document.location.reload();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = "#00ffff";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawPaddle() {
+            ctx.beginPath();
+            ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+            ctx.fillStyle = "#00ffff";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawBlocks() {
+            for (let c = 0; c < blockColumnCount; c++) {
+                for (let r = 0; r < blockRowCount; r++) {
+                    if (blocks[c][r].status == 1) {
+                        const blockX = c * (blockWidth + blockPadding) + blockOffsetLeft;
+                        const blockY = r * (blockHeight + blockPadding) + blockOffsetTop;
+                        blocks[c][r].x = blockX;
+                        blocks[c][r].y = blockY;
+                        ctx.beginPath();
+                        ctx.rect(blockX, blockY, blockWidth, blockHeight);
+                        ctx.fillStyle = blocks[c][r].type === 'soldier' ? '#ff4136' : '#2ecc40';
+                        ctx.fill();
+                        ctx.strokeStyle = "#000";
+                        ctx.strokeRect(blockX, blockY, blockWidth, blockHeight);
+                        ctx.closePath();
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBlocks();
+            drawBall();
+            drawPaddle();
+            collisionDetection();
+
+            if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                dx = -dx;
+            }
+            if (y + dy < ballRadius) {
+                dy = -dy;
+            } else if (y + dy > canvas.height - ballRadius) {
+                if (x > paddleX && x < paddleX + paddleWidth) {
+                    dy = -dy;
+                } else {
+                    lives--;
+                    livesDisplay.textContent = lives;
+                    if (!lives) {
+                        gameOver();
+                    } else {
+                        x = canvas.width / 2;
+                        y = canvas.height - 30;
+                        dx = 4;
+                        dy = -4;
+                        paddleX = (canvas.width - paddleWidth) / 2;
+                    }
+                }
+            }
+
+            x += dx;
+            y += dy;
+            paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX));
+
+            if (gameStarted) {
+                requestAnimationFrame(draw);
+            }
+        }
+
+        function startGame() {
+            gameStarted = true;
+            startScreen.style.display = 'none';
+            draw();
+        }
+
+        function gameOver() {
+            gameStarted = false;
+            gameOverScreen.style.display = 'flex';
+            finalScoreDisplay.textContent = score;
+            finalPeopleDisplay.textContent = people;
+        }
+
+        function restartGame() {
+            document.location.reload();
+        }
+
+        drawBlocks();
+        drawPaddle();
+        drawBall();
+    </script>
+</body>
+</html>
